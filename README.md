@@ -7,15 +7,15 @@ A full-stack web application for team task management with role-based access con
 - **Authentication**: Secure signup/login with JWT tokens and bcrypt password hashing
 - **Project Management**: Create projects, invite team members by email
 - **Task Management**: Create, assign, and track tasks with priorities and due dates
-- **Kanban Board**: Visual task board with To Do, In Progress, and Done columns
-- **Dashboard**: Overview with total tasks, tasks by status, tasks per user, and overdue alerts
+- **Kanban Board**: Visual task board with drag-and-drop support across To Do, In Progress, and Done columns
+- **Dashboard**: Overview with total tasks, tasks by status, tasks per user, charts, and overdue task list
 - **Role-Based Access**: Admin (full control) and Member (view/update assigned tasks only)
 - **Real-Time Updates**: Socket.io powered live updates across all connected users
 - **Optimistic Locking**: Prevents conflicts when multiple users edit the same task
 
 ## Tech Stack
 
-- **Frontend**: React + Vite + Tailwind CSS + Recharts + Socket.io Client
+- **Frontend**: React + Vite + Tailwind CSS + Recharts + Socket.io Client + @hello-pangea/dnd
 - **Backend**: Node.js + Express + Socket.io
 - **Database**: PostgreSQL + Prisma ORM
 - **Auth**: JWT + bcrypt + Rate Limiting
@@ -32,7 +32,8 @@ A full-stack web application for team task management with role-based access con
 │   └── vite.config.js
 ├── server/                 # Express backend
 │   ├── prisma/
-│   │   └── schema.prisma   # Database schema
+│   │   ├── schema.prisma   # Database schema
+│   │   └── prisma.config.ts # Prisma v7 config
 │   ├── src/
 │   │   ├── middleware/      # Auth, RBAC
 │   │   ├── routes/          # Auth, Projects, Tasks, Dashboard
