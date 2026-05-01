@@ -44,6 +44,7 @@ export default function Dashboard() {
     { label: 'To Do', value: stats.tasksByStatus.TODO, icon: Clock, color: 'bg-blue-50 text-blue-600' },
     { label: 'In Progress', value: stats.tasksByStatus.IN_PROGRESS, icon: AlertTriangle, color: 'bg-amber-50 text-amber-600' },
     { label: 'Completed', value: stats.tasksByStatus.DONE, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Overdue', value: stats.overdueTasks, icon: AlertTriangle, color: 'bg-red-50 text-red-600' },
   ];
 
   return (
@@ -54,7 +55,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map(card => {
           const Icon = card.icon;
           return (
@@ -73,13 +74,59 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Overdue Alert */}
+      {/* Overdue Tasks */}
       {stats.overdueTasks > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-          <p className="text-sm text-red-700">
-            <span className="font-semibold">{stats.overdueTasks}</span> task{stats.overdueTasks > 1 ? 's' : ''} past their due date
-          </p>
+        <div className="bg-white rounded-xl border border-red-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <h3 className="text-base font-semibold text-red-700">
+              Overdue Tasks ({stats.overdueTasks})
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="pb-2 font-medium">Task</th>
+                  <th className="pb-2 font-medium">Project</th>
+                  <th className="pb-2 font-medium">Assignee</th>
+                  <th className="pb-2 font-medium">Due Date</th>
+                  <th className="pb-2 font-medium">Priority</th>
+                  <th className="pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {stats.overdueTaskList.map(task => (
+                  <tr key={task.id} className="text-gray-700">
+                    <td className="py-2.5 font-medium">{task.title}</td>
+                    <td className="py-2.5 text-gray-500">{task.projectName}</td>
+                    <td className="py-2.5 text-gray-500">{task.assigneeName || 'Unassigned'}</td>
+                    <td className="py-2.5 text-red-600 font-medium">
+                      {new Date(task.dueDate).toLocaleDateString()}
+                    </td>
+                    <td className="py-2.5">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        task.priority === 'URGENT' ? 'bg-red-100 text-red-700' :
+                        task.priority === 'HIGH' ? 'bg-orange-100 text-orange-700' :
+                        task.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td className="py-2.5">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        task.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {task.status === 'IN_PROGRESS' ? 'In Progress' : 'To Do'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

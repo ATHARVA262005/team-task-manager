@@ -24,7 +24,7 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const [totalTasks, tasksByStatus, tasksByPriority, overdueTasks, tasksPerProject, tasksPerUser] =
+    const [totalTasks, tasksByStatus, tasksByPriority, overdueTasks, overdueTaskList, tasksPerProject, tasksPerUser] =
       await Promise.all([
         prisma.task.count({ where: { projectId: { in: projectIds } } }),
         prisma.task.groupBy({
@@ -43,6 +43,24 @@ router.get('/', authenticate, async (req, res) => {
             status: { not: 'DONE' },
             dueDate: { lt: new Date() },
           },
+        }),
+        prisma.task.findMany({
+          where: {
+            projectId: { in: projectIds },
+            status: { not: 'DONE' },
+            dueDate: { lt: new Date() },
+          },
+          select: {
+            id: true,
+            title: true,
+            dueDate: true,
+            priority: true,
+            status: true,
+            project: { select: { name: true } },
+            assignee: { select: { id: true, name: true } },
+          },
+          orderBy: { dueDate: 'asc' },
+          take: 20,
         }),
         prisma.task.groupBy({
           by: ['projectId'],
@@ -89,6 +107,15 @@ router.get('/', authenticate, async (req, res) => {
       tasksByStatus: statusMap,
       tasksByPriority: priorityMap,
       overdueTasks,
+      overdueTaskList: overdueTaskList.map(t => ({
+        id: t.id,
+        title: t.title,
+        dueDate: t.dueDate,
+        priority: t.priority,
+        status: t.status,
+        projectName: t.project.name,
+        assigneeName: t.assignee?.name || null,
+      })),
       tasksPerProject: tasksPerProject.map(t => ({
         projectId: t.projectId,
         projectName: projectMap[t.projectId] || 'Unknown',
