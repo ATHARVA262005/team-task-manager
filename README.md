@@ -98,6 +98,7 @@ A full-stack web application for team task management with role-based access con
 4. Deploy from GitHub repo:
    - Railway auto-detects Node.js
    - Build command: `cd client && npm install && npm run build && cd ../server && npm install && npx prisma generate`
+   - Pre-Deploy command: `cd server && npx prisma migrate deploy`
    - Start command: `cd server && node src/index.js`
    - The server serves the React build in production, so everything runs on one URL
 
@@ -108,15 +109,9 @@ A full-stack web application for team task management with role-based access con
    | `JWT_SECRET` | Generate a random secret string |
    | `NODE_ENV` | `production` |
 
-6. Run migrations:
-   ```bash
-   # In Railway shell or locally with Railway DATABASE_URL
-   npx prisma migrate deploy
-   ```
+6. Railway will auto-deploy on every push to main. Migrations run automatically via Pre-Deploy command.
 
-7. Railway will auto-deploy on every push to main
-
-8. Your app will be live at the Railway-provided URL
+7. Your app will be live at the Railway-provided URL
 
 ## API Endpoints
 
