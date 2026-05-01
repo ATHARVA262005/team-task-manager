@@ -1,22 +1,45 @@
 # TaskFlow - Team Task Manager
 
-A full-stack web application for team task management with role-based access control.
+A full-stack web application for team task management with role-based access control, real-time updates, and a Kanban board.
 
 ## Features
 
-- **Authentication**: Signup/Login with JWT tokens
-- **Project Management**: Create projects, invite team members
+- **Authentication**: Secure signup/login with JWT tokens and bcrypt password hashing
+- **Project Management**: Create projects, invite team members by email
 - **Task Management**: Create, assign, and track tasks with priorities and due dates
 - **Kanban Board**: Visual task board with To Do, In Progress, and Done columns
-- **Dashboard**: Overview of tasks by status, priority, and project
-- **Role-Based Access**: Admin (full control) and Member (assigned tasks only)
+- **Dashboard**: Overview with total tasks, tasks by status, tasks per user, and overdue alerts
+- **Role-Based Access**: Admin (full control) and Member (view/update assigned tasks only)
+- **Real-Time Updates**: Socket.io powered live updates across all connected users
+- **Optimistic Locking**: Prevents conflicts when multiple users edit the same task
 
 ## Tech Stack
 
-- **Frontend**: React + Vite + Tailwind CSS + Recharts
-- **Backend**: Node.js + Express
+- **Frontend**: React + Vite + Tailwind CSS + Recharts + Socket.io Client
+- **Backend**: Node.js + Express + Socket.io
 - **Database**: PostgreSQL + Prisma ORM
-- **Auth**: JWT + bcrypt
+- **Auth**: JWT + bcrypt + Rate Limiting
+
+## Project Structure
+
+```
+├── client/                 # React frontend
+│   ├── src/
+│   │   ├── components/     # Layout, ProtectedRoute
+│   │   ├── context/        # AuthContext, SocketContext
+│   │   ├── lib/            # API client (axios)
+│   │   └── pages/          # Login, Signup, Dashboard, Projects, ProjectDetail
+│   └── vite.config.js
+├── server/                 # Express backend
+│   ├── prisma/
+│   │   └── schema.prisma   # Database schema
+│   ├── src/
+│   │   ├── middleware/      # Auth, RBAC
+│   │   ├── routes/          # Auth, Projects, Tasks, Dashboard
+│   │   └── utils/           # Prisma client
+│   └── .env
+└── README.md
+```
 
 ## Local Development
 
@@ -29,7 +52,7 @@ A full-stack web application for team task management with role-based access con
 
 1. Clone the repository:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/ATHARVA262005/team-task-manager.git
    cd team-task-manager
    ```
 
@@ -39,9 +62,8 @@ A full-stack web application for team task management with role-based access con
    cd ../client && npm install
    ```
 
-3. Set up environment variables:
-   ```bash
-   # server/.env
+3. Set up environment variables in `server/.env`:
+   ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/taskmanager"
    JWT_SECRET="your-secret-key"
    PORT=5000
@@ -67,37 +89,69 @@ A full-stack web application for team task management with role-based access con
 
 ## Deployment (Railway)
 
-1. Push to GitHub
-2. Go to [railway.app](https://railway.app)
-3. Create a new project from GitHub repo
-4. Add a PostgreSQL database service
-5. Set environment variables:
-   - `DATABASE_URL` (from Railway PostgreSQL)
-   - `JWT_SECRET` (random secret)
-   - `NODE_ENV=production`
-   - `CLIENT_URL` (your deployed frontend URL)
-6. Railway will auto-deploy on push
+1. Push your code to GitHub
+
+2. Go to [railway.app](https://railway.app) and create a new project
+
+3. Add a **PostgreSQL** database service from the Railway dashboard
+
+4. Deploy from GitHub repo:
+   - Railway auto-detects Node.js
+   - Build command: `cd client && npm install && npm run build && cd ../server && npm install && npx prisma generate`
+   - Start command: `cd server && node src/index.js`
+   - The server serves the React build in production, so everything runs on one URL
+
+5. Set environment variables in Railway:
+   | Variable | Value |
+   |----------|-------|
+   | `DATABASE_URL` | Copy from Railway PostgreSQL service |
+   | `JWT_SECRET` | Generate a random secret string |
+   | `NODE_ENV` | `production` |
+
+6. Run migrations:
+   ```bash
+   # In Railway shell or locally with Railway DATABASE_URL
+   npx prisma migrate deploy
+   ```
+
+7. Railway will auto-deploy on every push to main
+
+8. Your app will be live at the Railway-provided URL
 
 ## API Endpoints
 
+### Authentication
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | /api/auth/signup | Register |
-| POST | /api/auth/login | Login |
-| GET | /api/auth/me | Current user |
-| POST | /api/projects | Create project |
-| GET | /api/projects | List projects |
-| GET | /api/projects/:id | Project details |
-| PUT | /api/projects/:id | Update project |
-| DELETE | /api/projects/:id | Delete project |
-| POST | /api/projects/:id/members | Add member |
-| DELETE | /api/projects/:id/members/:uid | Remove member |
-| POST | /api/projects/:pid/tasks | Create task |
-| GET | /api/projects/:pid/tasks | List tasks |
-| GET | /api/tasks/:id | Task details |
-| PUT | /api/tasks/:id | Update task |
-| DELETE | /api/tasks/:id | Delete task |
-| GET | /api/dashboard | Dashboard stats |
+| POST | /api/auth/signup | Register a new user |
+| POST | /api/auth/login | Login (returns JWT) |
+| GET | /api/auth/me | Get current user |
+
+### Projects
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/projects | Create project (creator = Admin) |
+| GET | /api/projects | List user's projects |
+| GET | /api/projects/:id | Get project details + tasks |
+| PUT | /api/projects/:id | Update project (Admin only) |
+| DELETE | /api/projects/:id | Delete project (Admin only) |
+| POST | /api/projects/:id/members | Add member by email (Admin) |
+| PUT | /api/projects/:id/members/:uid | Change member role (Admin) |
+| DELETE | /api/projects/:id/members/:uid | Remove member (Admin) |
+
+### Tasks
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/projects/:pid/tasks | Create task (Admin only) |
+| GET | /api/projects/:pid/tasks | List tasks (paginated) |
+| GET | /api/tasks/:id | Get task details |
+| PUT | /api/tasks/:id | Update task (with version lock) |
+| DELETE | /api/tasks/:id | Delete task (Admin only) |
+
+### Dashboard
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/dashboard | Get aggregated stats |
 
 ## Role-Based Access
 
@@ -105,7 +159,19 @@ A full-stack web application for team task management with role-based access con
 |--------|-------|--------|
 | Create project | Yes | No |
 | Manage members | Yes | No |
-| Create tasks | Yes | Yes |
-| Edit any task | Yes | No |
+| Create tasks | Yes | No |
+| Edit any task field | Yes | No |
 | Update assigned task status | Yes | Yes |
 | Delete tasks | Yes | No |
+| View project tasks | Yes | Yes |
+| Change member roles | Yes | No |
+
+## Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `JWT_SECRET` | Secret key for JWT signing | Yes |
+| `PORT` | Server port (default: 5000) | No |
+| `CLIENT_URL` | Frontend URL for CORS | No |
+| `NODE_ENV` | Set to `production` for deployment | No |

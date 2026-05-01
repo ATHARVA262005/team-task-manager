@@ -124,6 +124,26 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Tasks per User */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">Tasks per User</h3>
+        {stats.tasksPerUser && stats.tasksPerUser.length > 0 ? (
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={stats.tasksPerUser} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
+              <YAxis type="category" dataKey="userName" tick={{ fontSize: 12 }} width={100} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#8b5cf6" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[250px] text-gray-400 text-sm">
+            No tasks assigned yet
+          </div>
+        )}
+      </div>
     </div>
   );
 }

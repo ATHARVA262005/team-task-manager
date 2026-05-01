@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { Plus, UserPlus, Trash2, X, ChevronDown, Calendar, Flag } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -36,6 +37,8 @@ export default function ProjectDetail() {
     title: '', description: '', dueDate: '', priority: 'MEDIUM', assigneeId: '',
   });
 
+  const socket = useSocket();
+
   const fetchProject = () => {
     api.get(`/projects/${id}`)
       .then(res => setProject(res.data))
@@ -45,7 +48,31 @@ export default function ProjectDetail() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchProject(); }, [id]);
+  useEffect(() => {
+    fetchProject();
+
+    if (socket && id) {
+      socket.emit('join:project', id);
+
+      const refetch = () => fetchProject();
+      socket.on('task:created', refetch);
+      socket.on('task:updated', refetch);
+      socket.on('task:deleted', refetch);
+      socket.on('member:added', refetch);
+      socket.on('member:removed', refetch);
+      socket.on('member:updated', refetch);
+
+      return () => {
+        socket.emit('leave:project', id);
+        socket.off('task:created', refetch);
+        socket.off('task:updated', refetch);
+        socket.off('task:deleted', refetch);
+        socket.off('member:added', refetch);
+        socket.off('member:removed', refetch);
+        socket.off('member:updated', refetch);
+      };
+    }
+  }, [id, socket]);
 
   const isAdmin = project?.members?.find(m => m.userId === user?.id)?.role === 'ADMIN';
 
@@ -64,12 +91,25 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleUpdateTask = async (taskId, data) => {
+  const handleUpdateTask = async (taskId, data, version) => {
     try {
-      await api.put(`/tasks/${taskId}`, data);
+      await api.put(`/tasks/${taskId}`, { ...data, version });
       fetchProject();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update task');
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || 'Failed to update task';
+      if (status === 409) {
+        alert(msg);
+        fetchProject(); // Refresh to get latest
+      } else if (status === 404) {
+        alert(msg);
+        fetchProject(); // Task was deleted, refresh
+      } else if (status === 403) {
+        alert(msg);
+        fetchProject(); // Member removed, refresh
+      } else {
+        alert(msg);
+      }
     }
   };
 
@@ -79,7 +119,11 @@ export default function ProjectDetail() {
       await api.delete(`/tasks/${taskId}`);
       fetchProject();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete task');
+      if (err.response?.status === 404) {
+        fetchProject(); // Already deleted, refresh
+      } else {
+        alert(err.response?.data?.error || 'Failed to delete task');
+      }
     }
   };
 
@@ -95,10 +139,22 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleRemoveMember = async (userId) => {
-    if (!confirm('Remove this member?')) return;
+  const handleRoleChange = async (userId, newRole) => {
     try {
-      await api.delete(`/projects/${id}/members/${userId}`);
+      await api.put(`/projects/${id}/members/${userId}`, { role: newRole });
+      fetchProject();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to change role');
+    }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!confirm('Remove this member? Their assigned tasks will be unassigned.')) return;
+    try {
+      const res = await api.delete(`/projects/${id}/members/${userId}`);
+      if (res.data.unassignedTasks > 0) {
+        alert(`Member removed. ${res.data.unassignedTasks} task(s) were unassigned.`);
+      }
       fetchProject();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to remove member');
@@ -125,7 +181,7 @@ export default function ProjectDetail() {
   const handleTaskSubmit = async (e) => {
     e.preventDefault();
     if (editingTask) {
-      await handleUpdateTask(editingTask.id, taskForm);
+      await handleUpdateTask(editingTask.id, taskForm, editingTask.version);
       setShowTaskModal(false);
       resetTaskForm();
     } else {
@@ -134,7 +190,8 @@ export default function ProjectDetail() {
   };
 
   const handleStatusChange = (taskId, newStatus) => {
-    handleUpdateTask(taskId, { status: newStatus });
+    const task = project?.tasks?.find(t => t.id === taskId);
+    handleUpdateTask(taskId, { status: newStatus }, task?.version);
   };
 
   if (loading) {
@@ -167,13 +224,15 @@ export default function ProjectDetail() {
               Members
             </button>
           )}
-          <button
-            onClick={() => { resetTaskForm(); setShowTaskModal(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Add Task
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => { resetTaskForm(); setShowTaskModal(true); }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Add Task
+            </button>
+          )}
         </div>
       </div>
 
@@ -350,12 +409,23 @@ export default function ProjectDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={clsx(
-                      'text-xs px-2 py-0.5 rounded-full font-medium',
-                      member.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-                    )}>
-                      {member.role}
-                    </span>
+                    {isAdmin && member.user.id !== user.id ? (
+                      <select
+                        value={member.role}
+                        onChange={(e) => handleRoleChange(member.user.id, e.target.value)}
+                        className="text-xs border border-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="ADMIN">Admin</option>
+                        <option value="MEMBER">Member</option>
+                      </select>
+                    ) : (
+                      <span className={clsx(
+                        'text-xs px-2 py-0.5 rounded-full font-medium',
+                        member.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                      )}>
+                        {member.role}
+                      </span>
+                    )}
                     {isAdmin && member.user.id !== user.id && (
                       <button
                         onClick={() => handleRemoveMember(member.user.id)}
